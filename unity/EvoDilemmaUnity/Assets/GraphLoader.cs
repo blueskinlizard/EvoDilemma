@@ -26,12 +26,11 @@ public class GraphLoader : MonoBehaviour
 
     void SpawnAgents()
     {
-        int numAgents = 100;
+        int numAgents = 200;
         float radius = 10f;
-        float jitterStrength = 5f; // Variable that scatters our agents (without this, they'll arrange themselves into a perfect circle)
+        float jitterStrength = 22f; // Variable that scatters our agents (without this, they'll arrange themselves into a perfect circle)
 
-        for (int i = 0; i < numAgents; i++)
-        {
+        for(int i = 0; i < numAgents; i++){
             float angle = i * Mathf.PI * 2 / numAgents;
             Vector2 basePos = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * radius;
             Vector2 jitter = Random.insideUnitCircle * jitterStrength;
@@ -45,18 +44,28 @@ public class GraphLoader : MonoBehaviour
 
     void DrawEdges()
     {
-        foreach (var (a, b) in edges)
-        {
+        foreach(var (a, b) in edges){
             Vector3 posA = agents[a].transform.position;
             Vector3 posB = agents[b].transform.position;
 
             GameObject edge = Instantiate(edgePrefab);
             var lineRenderer = edge.GetComponent<LineRenderer>();
             lineRenderer.positionCount = 2;
-            lineRenderer.startWidth = 0.08f;
-            lineRenderer.endWidth = 0.08f;
             lineRenderer.SetPosition(0, posA);
             lineRenderer.SetPosition(1, posB);
+            lineRenderer.startWidth = 0.05f;
+            lineRenderer.endWidth = 0.05f;
+
+            var agentA = agents[a].GetComponent<AgentScript>();
+            var agentB = agents[b].GetComponent<AgentScript>();
+
+            if(agentA && agentB){
+                agentA.connectedAgents.Add(agents[b]);
+                agentB.connectedAgents.Add(agents[a]);
+
+                agentA.connectedEdges.Add(lineRenderer);
+                agentB.connectedEdges.Add(lineRenderer);
+            }
         }
     }
 }
