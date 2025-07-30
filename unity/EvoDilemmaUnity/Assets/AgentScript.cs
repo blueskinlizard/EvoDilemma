@@ -6,6 +6,8 @@ using UnityEngine;
 
 public class AgentScript : MonoBehaviour
 {
+    public string agentID;
+
     private SpriteRenderer sr;
     private Color originalColor;
 
@@ -31,7 +33,7 @@ public class AgentScript : MonoBehaviour
     }
 
     void OnMouseDown(){
-        Debug.Log($"{gameObject.name} clicked");
+        Debug.Log($"{agentID} clicked");
         ResetPreviousSelection();
         AgentClickAction();
     }

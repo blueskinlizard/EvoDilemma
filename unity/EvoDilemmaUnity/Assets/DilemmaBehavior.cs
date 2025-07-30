@@ -1,8 +1,10 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using Newtonsoft.Json;
+using UnityEngine.Networking;
 
-public class GraphLoader : MonoBehaviour
+public class DilemmaBehavior : MonoBehaviour
 {
     [SerializeField] private GameObject agentPrefab;
     [SerializeField] private GameObject edgePrefab;
@@ -14,6 +16,7 @@ public class GraphLoader : MonoBehaviour
     {
         LoadGraph();
         SpawnAgents();
+        StartCoroutine(SpawnModels());
         DrawEdges();
     }
 
@@ -39,6 +42,30 @@ public class GraphLoader : MonoBehaviour
             GameObject agent = Instantiate(agentPrefab, new Vector3(pos.x, pos.y, 0), Quaternion.identity);
             agent.name = $"Agent_{i}";
             agents.Add(agent);
+            agent.GetComponent<AgentScript>().agentID = $"agent_{i}";
+        }
+    }
+    // I know my naming isn't the best, but the difference between SpawnModels and SpawnAgents is that this simply initializes the random pytorch models on our django server
+    IEnumerator SpawnModels()
+    {
+        string jsonRequest = $"{{\"num_agents\": {agents.Count}}}";
+        
+        byte[] bodyRaw = System.Text.Encoding.UTF8.GetBytes(jsonRequest);
+        using (UnityWebRequest www = new UnityWebRequest("http://localhost:8080/models_init", "POST"))
+        {
+            www.uploadHandler = new UploadHandlerRaw(bodyRaw);
+            www.downloadHandler = new DownloadHandlerBuffer();
+            www.SetRequestHeader("Content-Type", "application/json");
+            
+            yield return www.SendWebRequest();
+            
+            if(www.result != UnityWebRequest.Result.Success){
+                Debug.LogError($"Model init failed: {www.error}");
+            }
+            else{
+                Debug.Log("Models successfully initialized on server!");
+                Debug.Log($"Server returned: {www.downloadHandler.text}"); // This bit is honestly just to confirm that the correct number of agents have been created on the server
+            }
         }
     }
 
