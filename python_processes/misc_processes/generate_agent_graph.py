@@ -3,7 +3,7 @@ import networkx as nx
 import json
 
 num_agents = 400
-knn = 4
+knn = 5
 rewiring_prob = 0.3
 
 generated_agent_network = nx.watts_strogatz_graph(num_agents, knn, rewiring_prob)

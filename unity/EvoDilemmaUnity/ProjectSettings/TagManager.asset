@@ -41,3 +41,18 @@ TagManager:
   - name: Default
     uniqueID: 0
     locked: 0
+  - name: Background
+    uniqueID: 4284870805
+    locked: 0
+  - name: Sim
+    uniqueID: 3654128173
+    locked: 0
+  - name: Edges
+    uniqueID: 3830218873
+    locked: 0
+  - name: Agents
+    uniqueID: 2033474141
+    locked: 0
+  - name: UI
+    uniqueID: 3573753997
+    locked: 0

@@ -10,6 +10,7 @@ public class MousePan : MonoBehaviour
     [SerializeField] float maxZoom = 100f;
     [SerializeField] float zoomSpeed = 0.7f;
 
+
     void Update()
     {
         if(Input.GetMouseButtonDown(0)){
@@ -24,5 +25,6 @@ public class MousePan : MonoBehaviour
         float scroll = Input.GetAxis("Mouse ScrollWheel");
         Camera.main.orthographicSize -= scroll * zoomSpeed;
         Camera.main.orthographicSize = Mathf.Clamp(Camera.main.orthographicSize, minZoom, maxZoom);
+
     }
 }

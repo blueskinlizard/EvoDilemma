@@ -8,8 +8,7 @@ import json
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 app = Flask(__name__)
-model = AgentModel()
-model.eval()
+
 
 agent_models = {}
 agent_models_history = {} # String/String dict that will communicate agent history to UNITY, not here.  
@@ -19,6 +18,7 @@ pairwise_history = {}
 
 DEFAULT_INPUT = 0.5 # When agent history isn't completely filled up by actual moves (0/1), we use this as an autofill. 
 NUM_ROUNDS_PER_PAIR = 4
+GENERATION_COUNT = 0 # This will (of course) go up
 
 def calculate_score_matrix(action_i, action_j):
 
@@ -52,7 +52,7 @@ def initialize_agents():
     return jsonify({'message': f'Initialized {num_agents} agents'}), 200
 
 @app.route('/forward', methods=['POST'])
-def forward_pass():
+def forward_pass(): # Technically not really needed, but if you want to run individual simulations you can use this method to do so
     data = request.get_json()
     agent_id = data.get('agent_id')
     inputs = data.get('inputs') # Our list of 6 floats provided by the agent (3 for what moves agent played against opponent, 3 vice versa)
@@ -74,16 +74,22 @@ def forward_pass():
 
 @app.route('/play_dilemma', methods=['GET'])
 def play_generation_dilemma():
+    # Clear dicts/data per generation
+    agent_general_scores = {}
+    agent_fitness_list = {}
+    pairwise_history.clear()
+
     # Read off our watts-strogatz connection json file
     with open('./ws_graph_edges.json', 'r') as f:
         edges = json.load(f)
+
     # Create history for each agent pair
     for agent_i, agent_j in edges:
         pair_key = tuple(sorted((agent_i, agent_j)))
         pairwise_history[pair_key] = {'i': [], 'j': []}
 
     actions_taken = {agent_name: [] for agent_name in agent_models}
-
+    agent_score_history = {agent_name: [] for agent_name in agent_models}
     for agent_i, agent_j in edges:
         model_i = agent_models[f"agent_{agent_i}"]
         model_j = agent_models[f"agent_{agent_j}"]
@@ -120,9 +126,28 @@ def play_generation_dilemma():
             # Steal, Steal: (1, 1)
             # Split, Steal: (5, 0) / (0, 5)
             # Split, Split: (3, 3)
-            agent_general_scores[f"agent_{agent_i}"],  agent_general_scores[f"agent_{agent_j}"] += calculate_score_matrix(action_i=action_i, action_j=action_j)
+            score_i, score_j = calculate_score_matrix(action_i, action_j)
 
-    return jsonify({'message': 'Generation played', 'actions': actions_taken})
+            name_i = f"agent_{agent_i}"
+            name_j = f"agent_{agent_j}"
+            agent_score_history[name_i].append(score_i)
+            agent_score_history[name_j].append(score_j)
+            agent_general_scores[name_i] = agent_general_scores.get(name_i, 0) + score_i
+            agent_general_scores[name_j] = agent_general_scores.get(name_j, 0) + score_j
+
+    for agent_name, score_list in agent_score_history.items():
+        post_first_game_scores = score_list[NUM_ROUNDS_PER_PAIR:] # We'll cut out the first four rounds the agent has played from their fitness calculations, as they hadn't built up a memory at that point. 
+        if post_first_game_scores:
+            agent_fitness_list[agent_name] = sum(post_first_game_scores) / len(post_first_game_scores)
+        else:
+            agent_fitness_list[agent_name] = 0  # In the weird case one of our agents doesn't have a network larger than 1 other agent, I guess we'll just void their score?
+            
+    return jsonify({
+        'message': 'Generation played!',
+        'actions': actions_taken,
+        'fitness_scores': agent_fitness_list,
+        'general_scores': agent_general_scores
+    })
 
 
 

@@ -3,12 +3,14 @@ using System.Collections.Generic;
 using UnityEngine;
 using Newtonsoft.Json;
 using UnityEngine.Networking;
+using UnityEngine.UI;
 
 public class DilemmaBehavior : MonoBehaviour
 {
     [SerializeField] private GameObject agentPrefab;
     [SerializeField] private GameObject edgePrefab;
     [SerializeField] private GameObject backgroundObject;
+    [SerializeField] private Button generationButton;
 
     private List<GameObject> agents = new List<GameObject>();
     private List<(int, int)> edges;
@@ -21,8 +23,8 @@ public class DilemmaBehavior : MonoBehaviour
         SpawnAgents();
         StartCoroutine(SpawnModels());
         DrawEdges();
+        generationButton.onClick.AddListener(OnGenerationProgressionClicked);
     }
-
     void LoadGraph()
     {
         TextAsset textAsset = Resources.Load<TextAsset>("ws_graph_edges"); // The JSON file we initialized under the generate_agent_graph python processes script
@@ -53,20 +55,20 @@ public class DilemmaBehavior : MonoBehaviour
         string jsonRequest = $"{{\"num_agents\": {agents.Count}}}";
         
         byte[] bodyRaw = System.Text.Encoding.UTF8.GetBytes(jsonRequest);
-        using (UnityWebRequest www = new UnityWebRequest("http://localhost:8080/models_init", "POST"))
+        using (UnityWebRequest fetchSpawn = new UnityWebRequest("http://localhost:8080/models_init", "POST"))
         {
-            www.uploadHandler = new UploadHandlerRaw(bodyRaw);
-            www.downloadHandler = new DownloadHandlerBuffer();
-            www.SetRequestHeader("Content-Type", "application/json");
+            fetchSpawn.uploadHandler = new UploadHandlerRaw(bodyRaw);
+            fetchSpawn.downloadHandler = new DownloadHandlerBuffer();
+            fetchSpawn.SetRequestHeader("Content-Type", "application/json");
             
-            yield return www.SendWebRequest();
+            yield return fetchSpawn.SendWebRequest();
             
-            if(www.result != UnityWebRequest.Result.Success){
-                Debug.LogError($"Model init failed: {www.error}");
+            if(fetchSpawn.result != UnityWebRequest.Result.Success){
+                Debug.LogError($"Model init failed: {fetchSpawn.error}");
             }
             else{
                 Debug.Log("Models successfully initialized on server!");
-                Debug.Log($"Server returned: {www.downloadHandler.text}"); // This bit is honestly just to confirm that the correct number of agents have been created on the server
+                Debug.Log($"Server returned: {fetchSpawn.downloadHandler.text}"); // This bit is honestly just to confirm that the correct number of agents have been created on the server
             }
         }
     }
@@ -104,4 +106,40 @@ public class DilemmaBehavior : MonoBehaviour
             }
         }
     }
+    void OnGenerationProgressionClicked()
+    {
+        Debug.Log("Generation Progression button clicked!");
+        StartCoroutine(ProgressGeneration());
+        // Run Progress Generation if other conditions are met
+    }
+    IEnumerator ProgressGeneration()
+    {
+        using (UnityWebRequest fetchGeneration = UnityWebRequest.Get("http://localhost:8080/play_dilemma"))
+        {
+            yield return fetchGeneration.SendWebRequest();
+
+            if(fetchGeneration.result != UnityWebRequest.Result.Success){
+                Debug.LogError($"Generation progression failed: {fetchGeneration.error}");
+            }
+            else{
+                string responseText = fetchGeneration.downloadHandler.text;
+                Debug.Log("Generation progression successful!");
+                Debug.Log($"Server returned: {responseText}");
+
+                var generationData = JsonConvert.DeserializeObject<GenerationResponse>(responseText);
+                // GenerationData includes the following: 
+                // generationData.actions
+                // generationData.fitness_scores
+                // generationData.general_scores
+            }
+        }
+
+    }
+}
+
+public class GenerationResponse{ // Just a little custom type for QOL ig
+    public string message;
+    public Dictionary<string, List<int>> actions;
+    public Dictionary<string, float> fitness_scores;
+    public Dictionary<string, int> general_scores;
 }
