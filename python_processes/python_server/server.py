@@ -3,12 +3,21 @@ from model_def import AgentModel
 import torch
 import torch.nn as nn
 import numpy as np
+import json
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 app = Flask(__name__)
 model = AgentModel()
 model.eval()
 
 agent_models = {}
+agent_models_history = {} # String/String dict that will communicate agent history to UNITY, not here.  
+model_fitness_list = {}
+pairwise_history = {}
+
+DEFAULT_INPUT = 0.5 # When agent history isn't completely filled up by actual moves (0/1), we use this as an autofill. 
+NUM_ROUNDS_PER_PAIR = 4
 
 @app.route('/models_init', methods=['POST'])
 def initialize_agents():
@@ -25,7 +34,7 @@ def initialize_agents():
         return jsonify({'error': 'num_agents must be an integer'}), 400
     
     for i in range(num_agents):
-        model = AgentModel()
+        model = AgentModel().to(device)
         model.eval()
         agent_models[f"agent_{i}"] = model
     return jsonify({'message': f'Initialized {num_agents} agents'}), 200
@@ -50,6 +59,52 @@ def forward_pass():
         action = int(np.argmax(probs)) # Binary output (prisoner's dilemma has only two options) where 0 will be to stay, 1 will be steal. 
 
     return jsonify({'action': action, 'probabilities': probs.tolist()})
+
+@app.route('/play_dilemma', methods=['GET'])
+def play_generation_dilemma():
+    # Read off our watts-strogatz connection json file
+    with open('./ws_graph_edges.json', 'r') as f:
+        edges = json.load(f)
+    # Create history for each agent pair
+    for agent_i, agent_j in edges:
+        pair_key = tuple(sorted((agent_i, agent_j)))
+        pairwise_history[pair_key] = {'i': [], 'j': []}
+
+    actions_taken = {agent_name: [] for agent_name in agent_models}
+
+    for agent_i, agent_j in edges:
+        model_i = agent_models[f"agent_{agent_i}"]
+        model_j = agent_models[f"agent_{agent_j}"]
+        pair_key = tuple(sorted((agent_i, agent_j)))
+        history_i = pairwise_history[pair_key]['i']
+        history_j = pairwise_history[pair_key]['j']
+
+        for round_num in range(NUM_ROUNDS_PER_PAIR):
+            # Get our input histories
+            input_i = ([DEFAULT_INPUT] * (3 - len(history_i)) + history_i)[-3:] + \
+                        ([DEFAULT_INPUT] * (3 - len(history_j)) + history_j)[-3:]
+            input_j = ([DEFAULT_INPUT] * (3 - len(history_j)) + history_j)[-3:] + \
+                      ([DEFAULT_INPUT] * (3 - len(history_i)) + history_i)[-3:]
+
+            input_tensor_i = torch.tensor([input_i], dtype=torch.float32).to(device)
+            input_tensor_j = torch.tensor([input_j], dtype=torch.float32).to(device)
+
+            with torch.no_grad():
+                probs_i = torch.softmax(model_i(input_tensor_i), dim=1).cpu().numpy()[0]
+                probs_j = torch.softmax(model_j(input_tensor_j), dim=1).cpu().numpy()[0]
+                action_i = int(np.argmax(probs_i))
+                action_j = int(np.argmax(probs_j))
+
+            # Update histories for both of our agents playing
+            history_i.append(action_i)
+            history_j.append(action_j)
+
+            # Record actions for this round
+            actions_taken[f"agent_{agent_i}"].append(action_i)
+            actions_taken[f"agent_{agent_j}"].append(action_j)
+
+    return jsonify({'message': 'Generation played', 'actions': actions_taken})
+
 
 if __name__ == '__main__':
     app.run(debug=True, port=8080)

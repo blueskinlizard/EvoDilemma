@@ -8,6 +8,9 @@ public class AgentScript : MonoBehaviour
 {
     public string agentID;
 
+    private List<int> agentHistory; // List of agent's actions
+    private List<int> enemyHistory; // General list of all of the agent's opponent's actions
+
     private SpriteRenderer sr;
     private Color originalColor;
 
