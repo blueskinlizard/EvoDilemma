@@ -13,11 +13,23 @@ model.eval()
 
 agent_models = {}
 agent_models_history = {} # String/String dict that will communicate agent history to UNITY, not here.  
-model_fitness_list = {}
+agent_general_scores = {}
+agent_fitness_list = {}
 pairwise_history = {}
 
 DEFAULT_INPUT = 0.5 # When agent history isn't completely filled up by actual moves (0/1), we use this as an autofill. 
 NUM_ROUNDS_PER_PAIR = 4
+
+def calculate_score_matrix(action_i, action_j):
+
+    if action_i == 0 and action_j == 0: # Split/Split 
+        return 3, 3
+    elif action_i == 0 and action_j == 1: # Split/Steal
+        return 0, 5
+    elif action_i == 1 and action_j == 0: # Steal/Split
+        return 5, 0
+    elif action_i == 1 and action_j == 1: # Steal/Steal
+        return 1, 1
 
 @app.route('/models_init', methods=['POST'])
 def initialize_agents():
@@ -94,6 +106,7 @@ def play_generation_dilemma():
                 probs_j = torch.softmax(model_j(input_tensor_j), dim=1).cpu().numpy()[0]
                 action_i = int(np.argmax(probs_i))
                 action_j = int(np.argmax(probs_j))
+                # Remember, 0 is to split, 1 is to steal
 
             # Update histories for both of our agents playing
             history_i.append(action_i)
@@ -103,7 +116,14 @@ def play_generation_dilemma():
             actions_taken[f"agent_{agent_i}"].append(action_i)
             actions_taken[f"agent_{agent_j}"].append(action_j)
 
+            # SCORE MATRIX
+            # Steal, Steal: (1, 1)
+            # Split, Steal: (5, 0) / (0, 5)
+            # Split, Split: (3, 3)
+            agent_general_scores[f"agent_{agent_i}"],  agent_general_scores[f"agent_{agent_j}"] += calculate_score_matrix(action_i=action_i, action_j=action_j)
+
     return jsonify({'message': 'Generation played', 'actions': actions_taken})
+
 
 
 if __name__ == '__main__':

@@ -8,9 +8,12 @@ public class DilemmaBehavior : MonoBehaviour
 {
     [SerializeField] private GameObject agentPrefab;
     [SerializeField] private GameObject edgePrefab;
+    [SerializeField] private GameObject backgroundObject;
 
     private List<GameObject> agents = new List<GameObject>();
     private List<(int, int)> edges;
+
+    [SerializeField] private float jitterStrength = 22f; // Variable that scatters our agents (without this, they'll arrange themselves into a perfect circle)
 
     private void Start()
     {
@@ -29,10 +32,9 @@ public class DilemmaBehavior : MonoBehaviour
 
     void SpawnAgents()
     {
-        int numAgents = 200;
+        int numAgents = 400;
         float radius = 10f;
-        float jitterStrength = 22f; // Variable that scatters our agents (without this, they'll arrange themselves into a perfect circle)
-
+         
         for(int i = 0; i < numAgents; i++){
             float angle = i * Mathf.PI * 2 / numAgents;
             Vector2 basePos = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * radius;
@@ -78,10 +80,17 @@ public class DilemmaBehavior : MonoBehaviour
             GameObject edge = Instantiate(edgePrefab);
             var lineRenderer = edge.GetComponent<LineRenderer>();
             lineRenderer.positionCount = 2;
-            lineRenderer.SetPosition(0, posA);
-            lineRenderer.SetPosition(1, posB);
+            lineRenderer.SetPosition(0, new Vector3(posA.x, posA.y, 0f));
+            lineRenderer.SetPosition(1, new Vector3(posB.x, posB.y, 0f));
             lineRenderer.startWidth = 0.05f;
             lineRenderer.endWidth = 0.05f;
+
+            lineRenderer.material = new Material(Shader.Find("Sprites/Default"));
+            lineRenderer.startColor = Color.gray;
+            lineRenderer.endColor = Color.gray;
+
+            lineRenderer.sortingLayerName = "Edges";  
+            lineRenderer.sortingOrder = 0;
 
             var agentA = agents[a].GetComponent<AgentScript>();
             var agentB = agents[b].GetComponent<AgentScript>();

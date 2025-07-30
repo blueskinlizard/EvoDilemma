@@ -27,8 +27,10 @@ public class AgentScript : MonoBehaviour
     {
         sr = GetComponent<SpriteRenderer>();
         originalColor = sr.color;
+        sr.sortingLayerName = "Agents";
+        sr.sortingOrder = 0;
 
-        // Cache all agents and lines initially
+        // Cache all of our agents and lines initially
         if(allAgents == null || allEdges == null){
             allAgents = FindObjectsOfType<AgentScript>();
             allEdges = FindObjectsOfType<LineRenderer>();
@@ -49,10 +51,10 @@ public class AgentScript : MonoBehaviour
         lastSelectedAgents.Clear();
 
         foreach(var edge in lastSelectedEdges){
-            edge.startColor = Color.white;
-            edge.endColor = Color.white;
-            edge.startWidth = 0.5f;
-            edge.endWidth = 0.5f;
+            edge.startColor = new Color(0.5f, 0.5f, 0.5f, 0.3f); 
+            edge.endColor = new Color(0.5f, 0.5f, 0.5f, 0.3f);
+            edge.startWidth = 0.02f;
+            edge.endWidth = 0.02f;
         }
         lastSelectedEdges.Clear();
 
@@ -60,16 +62,6 @@ public class AgentScript : MonoBehaviour
             Color c = agent.sr.color;
             c.a = 1f; 
             agent.sr.color = c;
-        }
-        foreach(var edge in allEdges){
-            Color startC = edge.startColor;
-            Color endC = edge.endColor;
-            startC.a = 1f;
-            endC.a = 1f;
-            edge.startColor = startC;
-            edge.endColor = endC;
-            edge.startWidth = 0.5f;
-            edge.endWidth = 0.5f;
         }
     }
 

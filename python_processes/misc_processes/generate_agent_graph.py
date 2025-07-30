@@ -2,7 +2,7 @@
 import networkx as nx
 import json
 
-num_agents = 200
+num_agents = 400
 knn = 4
 rewiring_prob = 0.3
 
