@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 import json
+import subprocess
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -146,7 +147,6 @@ def play_generation_dilemma():
             agent_fitness_list[agent_name] = sum(post_first_game_scores) / len(post_first_game_scores)
         else:
             agent_fitness_list[agent_name] = 0  # In the weird case one of our agents doesn't have a network larger than 1 other agent, I guess we'll just void their score?
-            
     return jsonify({
         'message': 'Generation played!',
         'actions': actions_taken,
@@ -189,6 +189,14 @@ def mutate_pruned_generation(): # We expect a one-dimensional list of agent name
 
     return jsonify({'message': f'Mutated 4 agents: {pruned_agent_list[:4]}'}), 200
     
+@app.route('/regenerate_network', methods=['GET'])
+def regenerate_agent_network():
+    network_subprocess = subprocess.run(['python', '../misc_processes/generate_agent_graph.py'], capture_output=True, text=True)
+    return jsonify({
+        'Output Message': network_subprocess.stdout,
+        'Error Message': network_subprocess.stderr
+    })
+
 
 if __name__ == '__main__':
     app.run(debug=True, port=8080)

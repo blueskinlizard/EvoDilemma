@@ -18,11 +18,11 @@ public class AgentScript : MonoBehaviour
     public List<GameObject> connectedAgents = new List<GameObject>();
     public List<LineRenderer> connectedEdges = new List<LineRenderer>();
 
-    private static List<AgentScript> lastSelectedAgents = new List<AgentScript>();
-    private static List<LineRenderer> lastSelectedEdges = new List<LineRenderer>();
+    public static List<AgentScript> lastSelectedAgents = new List<AgentScript>();
+    public static List<LineRenderer> lastSelectedEdges = new List<LineRenderer>();
 
-    private static AgentScript[] allAgents;
-    private static LineRenderer[] allEdges;
+    public static AgentScript[] allAgents;
+    public static LineRenderer[] allEdges;
 
     public static List<(string, int)> agentBehaviorList = new List<(string, int)>();
 
@@ -32,12 +32,6 @@ public class AgentScript : MonoBehaviour
         originalColor = sr.color;
         sr.sortingLayerName = "Agents";
         sr.sortingOrder = 0;
-
-        // Cache all of our agents and lines initially
-        if(allAgents == null || allEdges == null){
-            allAgents = FindObjectsOfType<AgentScript>();
-            allEdges = FindObjectsOfType<LineRenderer>();
-        }
     }
 
     void OnMouseDown(){
@@ -49,20 +43,24 @@ public class AgentScript : MonoBehaviour
     void ResetPreviousSelection()
     {
         foreach(var edge in lastSelectedEdges){
-            edge.startColor = new Color(0.5f, 0.5f, 0.5f, 0.3f); 
-            edge.endColor = new Color(0.5f, 0.5f, 0.5f, 0.3f);
-            edge.startWidth = 0.02f;
-            edge.endWidth = 0.02f;
+            if(edge != null) {
+                edge.startColor = new Color(0.5f, 0.5f, 0.5f, 0.3f); 
+                edge.endColor = new Color(0.5f, 0.5f, 0.5f, 0.3f);
+                edge.startWidth = 0.02f;
+                edge.endWidth = 0.02f;
+            }
         }
-        lastSelectedEdges.Clear();
+        lastSelectedEdges.RemoveAll(edge => edge == null);
 
         foreach(var agent in lastSelectedAgents){
-            RestoreAgentBehaviorColor(agent);
+            if (agent != null)
+                RestoreAgentBehaviorColor(agent);
         }
-        lastSelectedAgents.Clear();
+        lastSelectedAgents.RemoveAll(agent => agent == null);
 
         foreach(var agent in allAgents){
-            RestoreAgentBehaviorColor(agent, setAlpha: true); 
+            if(agent != null)
+                RestoreAgentBehaviorColor(agent, setAlpha: true); 
         }
     }
 
@@ -105,13 +103,10 @@ public class AgentScript : MonoBehaviour
             }
         }
 
-        sr.color = new Color(originalColor.r, originalColor.g, originalColor.b, 1f);
-        sr.color = Color.yellow;
 
         foreach(var go in connectedAgents){
             var otherAgent = go.GetComponent<AgentScript>();
             if(otherAgent != null){
-                otherAgent.SetColor(new Color(1f, 0.4f, 0.7f, 1f));
                 lastSelectedAgents.Add(otherAgent);
             }
         }

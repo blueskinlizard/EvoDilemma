@@ -17,6 +17,8 @@ public class DilemmaBehavior : MonoBehaviour
     public static int CurrentGeneration = 0;
 
     private List<GameObject> agents = new List<GameObject>();
+    private List<GameObject> activeEdges = new List<GameObject>();
+
     private List<(int, int)> edges;
     public static List<(string, int)> agentBehaviorList = new List<(string, int)>(); // Public static as we need to access it in our AgentScript
     private Dictionary<string, float> sortedTopFitness = new Dictionary<string, float>();
@@ -57,6 +59,7 @@ public class DilemmaBehavior : MonoBehaviour
             agents.Add(agent);
             agent.GetComponent<AgentScript>().agentID = $"agent_{i}";
         }
+        AgentScript.allAgents = FindObjectsOfType<AgentScript>();
     }
     // I know my naming isn't the best, but the difference between SpawnModels and SpawnAgents is that this simply initializes the random pytorch models on our django server
     IEnumerator SpawnModels()
@@ -89,6 +92,7 @@ public class DilemmaBehavior : MonoBehaviour
             Vector3 posB = agents[b].transform.position;
 
             GameObject edge = Instantiate(edgePrefab);
+            activeEdges.Add(edge);
             var lineRenderer = edge.GetComponent<LineRenderer>();
             lineRenderer.positionCount = 2;
             lineRenderer.SetPosition(0, new Vector3(posA.x, posA.y, 0f));
@@ -114,6 +118,7 @@ public class DilemmaBehavior : MonoBehaviour
                 agentB.connectedEdges.Add(lineRenderer);
             }
         }
+        AgentScript.allEdges = FindObjectsOfType<LineRenderer>();
     }
     void DrawPrunedEdges()
     {
@@ -123,6 +128,7 @@ public class DilemmaBehavior : MonoBehaviour
                 Vector3 posB = agents[newB].transform.position;
 
                 GameObject edge = Instantiate(edgePrefab);
+                activeEdges.Add(edge);
                 var lineRenderer = edge.GetComponent<LineRenderer>();
                 lineRenderer.positionCount = 2;
                 lineRenderer.SetPosition(0, new Vector3(posA.x, posA.y, 0f));
@@ -149,6 +155,7 @@ public class DilemmaBehavior : MonoBehaviour
                 }
             }
         }
+        AgentScript.allEdges = FindObjectsOfType<LineRenderer>();
     }
     void OnGenerationProgressionClicked()
     {
@@ -158,10 +165,26 @@ public class DilemmaBehavior : MonoBehaviour
     IEnumerator ProgressGeneration()
     {
         if(CurrentGeneration > 0){
-            MutateGeneration(); 
             // The reason why we don't need any code to "handle" mutation logic other than this, is because our mutations are stored sever side! 
             // This means we can seamlessly integrate this method into our script
+            yield return StartCoroutine(MutateGeneration()); // Make sure our mutation completes first
+            ClearSim();
+
+            // Reset static references
+            AgentScript.allAgents = null; 
+            AgentScript.allEdges = null; 
+
+            LoadGraph();
+            SpawnAgents();
+            DrawEdges();
+
+            yield return new WaitForEndOfFrame(); // Wait for all agents & edges to be created
+            
+            // Ensure the static references are properly set after recreation
+            AgentScript.allAgents = FindObjectsOfType<AgentScript>();
+            AgentScript.allEdges = FindObjectsOfType<LineRenderer>();
         }
+        
         using (UnityWebRequest fetchGeneration = UnityWebRequest.Get("http://localhost:8080/play_dilemma"))
         {
             yield return fetchGeneration.SendWebRequest();
@@ -173,8 +196,8 @@ public class DilemmaBehavior : MonoBehaviour
                 string responseText = fetchGeneration.downloadHandler.text;
                 Debug.Log("Generation progression successful!");
                 Debug.Log($"Server returned: {responseText}");
-
                 var generationData = JsonConvert.DeserializeObject<GenerationResponse>(responseText);
+
                 // GenerationData includes the following: 
                 // generationData.actions
                 // generationData.fitness_scores
@@ -186,6 +209,7 @@ public class DilemmaBehavior : MonoBehaviour
                 sortedTopFitness = generationData.fitness_scores.OrderByDescending(pair => pair.Value).Take((int)(generationData.fitness_scores.Count * 0.25)).ToDictionary(pair => pair.Key, pair => pair.Value);
                 
                 // For visualization, we'll save if certain agents lean more towards being stealers/splitters. 
+                agentBehaviorList.Clear(); // Clear the list before repopulating
                 foreach(var agentActions in generationData.actions){
                     int zeros = agentActions.Value.Count(actions => actions == 0);
                     int ones = agentActions.Value.Count(actions => actions == 1);
@@ -210,7 +234,6 @@ public class DilemmaBehavior : MonoBehaviour
                 CurrentGeneration++;
             }
         }
-
     }
     void PruneGeneration()
     {
@@ -229,6 +252,9 @@ public class DilemmaBehavior : MonoBehaviour
                 agentScript.connectedEdges.Clear();
                 agentScript.connectedAgents.Clear();
             }
+
+            AgentScript.allAgents = null;
+            AgentScript.allEdges = null;
 
             // We'll remove agents that didn't make it into our top 25% fitness rankings
             foreach(var agent in agents){
@@ -293,6 +319,27 @@ public class DilemmaBehavior : MonoBehaviour
                 Debug.Log($"Server returned: {fetchMutation.downloadHandler.text}");
             }
         }
+    }
+    void ClearSim()
+    {
+        foreach(var edge in activeEdges){
+            if (edge != null)
+                Destroy(edge);
+        }
+        activeEdges.Clear();
+
+        foreach(var agent in agents){
+            if(agent != null)
+                Destroy(agent);
+        }
+        agents.Clear();
+
+        agentBehaviorList.Clear();
+        AgentScript.agentBehaviorList.Clear();
+        AgentScript.lastSelectedEdges.Clear();
+        AgentScript.lastSelectedAgents.Clear();
+        AgentScript.allAgents = null; 
+        AgentScript.allEdges = null; 
     }
 }
 
