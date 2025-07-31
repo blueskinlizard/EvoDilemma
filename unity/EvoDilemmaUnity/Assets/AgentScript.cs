@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Generic;
 using UnityEngine;
+using System.Linq;
 
 
 public class AgentScript : MonoBehaviour
@@ -22,6 +23,8 @@ public class AgentScript : MonoBehaviour
 
     private static AgentScript[] allAgents;
     private static LineRenderer[] allEdges;
+
+    public static List<(string, int)> agentBehaviorList = new List<(string, int)>();
 
     void Start()
     {
@@ -45,11 +48,6 @@ public class AgentScript : MonoBehaviour
 
     void ResetPreviousSelection()
     {
-        foreach(var agent in lastSelectedAgents){
-            agent.SetColor(agent.originalColor);
-        }
-        lastSelectedAgents.Clear();
-
         foreach(var edge in lastSelectedEdges){
             edge.startColor = new Color(0.5f, 0.5f, 0.5f, 0.3f); 
             edge.endColor = new Color(0.5f, 0.5f, 0.5f, 0.3f);
@@ -58,10 +56,13 @@ public class AgentScript : MonoBehaviour
         }
         lastSelectedEdges.Clear();
 
+        foreach(var agent in lastSelectedAgents){
+            RestoreAgentBehaviorColor(agent);
+        }
+        lastSelectedAgents.Clear();
+
         foreach(var agent in allAgents){
-            Color c = agent.sr.color;
-            c.a = 1f; 
-            agent.sr.color = c;
+            RestoreAgentBehaviorColor(agent, setAlpha: true); 
         }
     }
 
@@ -85,8 +86,8 @@ public class AgentScript : MonoBehaviour
         foreach(var edge in allEdges)
         {
             if(connectedEdges.Contains(edge)){
-                edge.startColor = Color.blue;
-                edge.endColor = Color.blue;
+                edge.startColor = Color.green;
+                edge.endColor = Color.green;
                 edge.startWidth = 0.1f; // Increase line thickness after agent clicked on
                 edge.endWidth = 0.1f;
 
@@ -105,12 +106,12 @@ public class AgentScript : MonoBehaviour
         }
 
         sr.color = new Color(originalColor.r, originalColor.g, originalColor.b, 1f);
-        sr.color = Color.red;
+        sr.color = Color.yellow;
 
         foreach(var go in connectedAgents){
             var otherAgent = go.GetComponent<AgentScript>();
             if(otherAgent != null){
-                otherAgent.SetColor(new Color(0, 0, 1, 1)); 
+                otherAgent.SetColor(new Color(1f, 0.4f, 0.7f, 1f));
                 lastSelectedAgents.Add(otherAgent);
             }
         }
@@ -120,5 +121,21 @@ public class AgentScript : MonoBehaviour
 
     public void SetColor(Color color){
         sr.color = color;
+    }
+    void RestoreAgentBehaviorColor(AgentScript agent, bool setAlpha = false)
+    {
+        var behaviorEntry = agentBehaviorList.FirstOrDefault(entry => entry.Item1 == agent.agentID);
+
+        if(behaviorEntry != default && agentBehaviorList.Contains(behaviorEntry)){
+            Color behaviorColor = (behaviorEntry.Item2 == 0) ? Color.blue : Color.red;
+            if (setAlpha)
+            {
+                behaviorColor.a = 1f;
+            }
+            agent.SetColor(behaviorColor);
+        }
+        else{
+            agent.SetColor(Color.gray); 
+        }
     }
 }

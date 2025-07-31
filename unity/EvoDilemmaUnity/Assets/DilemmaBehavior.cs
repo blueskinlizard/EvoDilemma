@@ -4,6 +4,7 @@ using UnityEngine;
 using Newtonsoft.Json;
 using UnityEngine.Networking;
 using UnityEngine.UI;
+using System.Linq;
 
 public class DilemmaBehavior : MonoBehaviour
 {
@@ -14,6 +15,7 @@ public class DilemmaBehavior : MonoBehaviour
 
     private List<GameObject> agents = new List<GameObject>();
     private List<(int, int)> edges;
+    public static List<(string, int)> agentBehaviorList = new List<(string, int)>(); // Public static as we need to access it in our AgentScript
 
     [SerializeField] private float jitterStrength = 22f; // Variable that scatters our agents (without this, they'll arrange themselves into a perfect circle)
 
@@ -131,6 +133,35 @@ public class DilemmaBehavior : MonoBehaviour
                 // generationData.actions
                 // generationData.fitness_scores
                 // generationData.general_scores
+
+                // Who we'll keep from this generation.
+                // Now I contemplated between progressing generations either based on global score or between score among smaller subsets of say, 4 agents.
+                // I chose global progression as it is, ahem, easier to do, and that we can still obtain variance akin to local tournaments given the variety of opponents each agent plays due to our Watts-Strogatz network. 
+                var sortedTopFitness = generationData.fitness_scores.OrderByDescending(pair => pair.Value).Take((int)(generationData.fitness_scores.Count * 0.25)).ToDictionary(pair => pair.Key, pair => pair.Value);
+                
+                // For visualization, we'll save if certain agents lean more towards being stealers/splitters. 
+                foreach(var agentActions in generationData.actions){
+                    int zeros = agentActions.Value.Count(actions => actions == 0);
+                    int ones = agentActions.Value.Count(actions => actions == 1);
+                    int behavior = (zeros >= ones) ? 0 : 1;
+                    agentBehaviorList.Add((agentActions.Key, behavior));
+                }
+                // Without this line/logic we would encounter an error where whenever an agent is clicked off, their color turns gray. 
+                AgentScript.agentBehaviorList = agentBehaviorList;
+
+                // Now we'll loop through our agent GameObjects and set their color to Blue(Leans more towards splitting) and Red(Leans more towards stealing)
+                foreach(var agent in agents){
+                    var agentScript = agent.GetComponent<AgentScript>();
+                    string agentId = agentScript.agentID;
+
+                    var behaviorEntry = agentBehaviorList.FirstOrDefault(entry => entry.Item1 == agentId);
+
+                    if(behaviorEntry != default){
+                        Color colorToSet = (behaviorEntry.Item2 == 0) ? Color.blue : Color.red;
+                        agentScript.SetColor(colorToSet);
+                    }
+                }
+                
             }
         }
 
