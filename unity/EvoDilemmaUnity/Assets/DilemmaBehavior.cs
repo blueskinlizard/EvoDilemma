@@ -12,10 +12,15 @@ public class DilemmaBehavior : MonoBehaviour
     [SerializeField] private GameObject edgePrefab;
     [SerializeField] private GameObject backgroundObject;
     [SerializeField] private Button generationButton;
+    [SerializeField] private Button pruneButton;
+
+    public static int CurrentGeneration = 0;
 
     private List<GameObject> agents = new List<GameObject>();
     private List<(int, int)> edges;
     public static List<(string, int)> agentBehaviorList = new List<(string, int)>(); // Public static as we need to access it in our AgentScript
+    private Dictionary<string, float> sortedTopFitness = new Dictionary<string, float>();
+    private Dictionary<int, int> oldIndexToNewIndex = new Dictionary<int, int>();
 
     [SerializeField] private float jitterStrength = 22f; // Variable that scatters our agents (without this, they'll arrange themselves into a perfect circle)
 
@@ -26,6 +31,8 @@ public class DilemmaBehavior : MonoBehaviour
         StartCoroutine(SpawnModels());
         DrawEdges();
         generationButton.onClick.AddListener(OnGenerationProgressionClicked);
+        pruneButton.onClick.AddListener(PruneGeneration);
+
     }
     void LoadGraph()
     {
@@ -108,11 +115,45 @@ public class DilemmaBehavior : MonoBehaviour
             }
         }
     }
+    void DrawPrunedEdges()
+    {
+        foreach(var (oldA, oldB) in edges){
+            if(oldIndexToNewIndex.TryGetValue(oldA, out int newA) && oldIndexToNewIndex.TryGetValue(oldB, out int newB)){
+                Vector3 posA = agents[newA].transform.position;
+                Vector3 posB = agents[newB].transform.position;
+
+                GameObject edge = Instantiate(edgePrefab);
+                var lineRenderer = edge.GetComponent<LineRenderer>();
+                lineRenderer.positionCount = 2;
+                lineRenderer.SetPosition(0, new Vector3(posA.x, posA.y, 0f));
+                lineRenderer.SetPosition(1, new Vector3(posB.x, posB.y, 0f));
+                lineRenderer.startWidth = 0.05f;
+                lineRenderer.endWidth = 0.05f;
+
+                lineRenderer.material = new Material(Shader.Find("Sprites/Default"));
+                lineRenderer.startColor = Color.gray;
+                lineRenderer.endColor = Color.gray;
+
+                lineRenderer.sortingLayerName = "Edges";  
+                lineRenderer.sortingOrder = 0;
+
+                var agentA = agents[newA].GetComponent<AgentScript>();
+                var agentB = agents[newB].GetComponent<AgentScript>();
+
+                if(agentA && agentB){
+                    agentA.connectedAgents.Add(agents[newB]);
+                    agentB.connectedAgents.Add(agents[newA]);
+
+                    agentA.connectedEdges.Add(lineRenderer);
+                    agentB.connectedEdges.Add(lineRenderer);
+                }
+            }
+        }
+    }
     void OnGenerationProgressionClicked()
     {
         Debug.Log("Generation Progression button clicked!");
         StartCoroutine(ProgressGeneration());
-        // Run Progress Generation if other conditions are met
     }
     IEnumerator ProgressGeneration()
     {
@@ -137,7 +178,7 @@ public class DilemmaBehavior : MonoBehaviour
                 // Who we'll keep from this generation.
                 // Now I contemplated between progressing generations either based on global score or between score among smaller subsets of say, 4 agents.
                 // I chose global progression as it is, ahem, easier to do, and that we can still obtain variance akin to local tournaments given the variety of opponents each agent plays due to our Watts-Strogatz network. 
-                var sortedTopFitness = generationData.fitness_scores.OrderByDescending(pair => pair.Value).Take((int)(generationData.fitness_scores.Count * 0.25)).ToDictionary(pair => pair.Key, pair => pair.Value);
+                sortedTopFitness = generationData.fitness_scores.OrderByDescending(pair => pair.Value).Take((int)(generationData.fitness_scores.Count * 0.25)).ToDictionary(pair => pair.Key, pair => pair.Value);
                 
                 // For visualization, we'll save if certain agents lean more towards being stealers/splitters. 
                 foreach(var agentActions in generationData.actions){
@@ -161,10 +202,65 @@ public class DilemmaBehavior : MonoBehaviour
                         agentScript.SetColor(colorToSet);
                     }
                 }
-                
+                CurrentGeneration++;
             }
         }
 
+    }
+    void PruneGeneration()
+    {
+        if(CurrentGeneration >= 1){
+            var agentIDsToKeep = new HashSet<string>(sortedTopFitness.Keys);
+            List<GameObject> prunedAgents = new List<GameObject>();
+            // Destroy all edges for all of our agents before pruning 
+
+            foreach(var agent in agents){
+                var agentScript = agent.GetComponent<AgentScript>();
+                foreach(var edgeLine in agentScript.connectedEdges){
+                    if(edgeLine != null){
+                        Destroy(edgeLine.gameObject);
+                    }
+                }
+                agentScript.connectedEdges.Clear();
+                agentScript.connectedAgents.Clear();
+            }
+
+            // We'll remove agents that didn't make it into our top 25% fitness rankings
+            foreach(var agent in agents){
+                var agentScript = agent.GetComponent<AgentScript>();
+                if(agentScript != null && agentIDsToKeep.Contains(agentScript.agentID)){
+                    prunedAgents.Add(agent);
+                }
+                else{
+                    Destroy(agent);
+                }
+            }
+            agents = prunedAgents;
+
+            // Let's now build up oldIndexToNewIndex map for the newly pruned list
+            oldIndexToNewIndex.Clear();
+            for(int newIndex = 0; newIndex < agents.Count; newIndex++)
+            {
+                string agentID = agents[newIndex].GetComponent<AgentScript>().agentID;
+                int oldIndex = ExtractIndexFromAgentID(agentID);
+                if(oldIndex >= 0)
+                {
+                    oldIndexToNewIndex[oldIndex] = newIndex;
+                }
+            }
+
+            agentBehaviorList.Clear();
+            AgentScript.agentBehaviorList.Clear();
+
+            DrawPrunedEdges();
+        }
+    }
+    private int ExtractIndexFromAgentID(string agentID)
+    {
+        var parts = agentID.Split('_');
+        if(parts.Length == 2 && int.TryParse(parts[1], out int index))
+            return index;
+        return -1; 
     }
 }
 

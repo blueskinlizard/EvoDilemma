@@ -128,8 +128,7 @@ public class AgentScript : MonoBehaviour
 
         if(behaviorEntry != default && agentBehaviorList.Contains(behaviorEntry)){
             Color behaviorColor = (behaviorEntry.Item2 == 0) ? Color.blue : Color.red;
-            if (setAlpha)
-            {
+            if(setAlpha){
                 behaviorColor.a = 1f;
             }
             agent.SetColor(behaviorColor);
