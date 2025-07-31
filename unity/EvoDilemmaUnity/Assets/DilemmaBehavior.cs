@@ -157,6 +157,11 @@ public class DilemmaBehavior : MonoBehaviour
     }
     IEnumerator ProgressGeneration()
     {
+        if(CurrentGeneration > 0){
+            MutateGeneration(); 
+            // The reason why we don't need any code to "handle" mutation logic other than this, is because our mutations are stored sever side! 
+            // This means we can seamlessly integrate this method into our script
+        }
         using (UnityWebRequest fetchGeneration = UnityWebRequest.Get("http://localhost:8080/play_dilemma"))
         {
             yield return fetchGeneration.SendWebRequest();
@@ -239,12 +244,10 @@ public class DilemmaBehavior : MonoBehaviour
 
             // Let's now build up oldIndexToNewIndex map for the newly pruned list
             oldIndexToNewIndex.Clear();
-            for(int newIndex = 0; newIndex < agents.Count; newIndex++)
-            {
+            for(int newIndex = 0; newIndex < agents.Count; newIndex++){
                 string agentID = agents[newIndex].GetComponent<AgentScript>().agentID;
                 int oldIndex = ExtractIndexFromAgentID(agentID);
-                if(oldIndex >= 0)
-                {
+                if(oldIndex >= 0){
                     oldIndexToNewIndex[oldIndex] = newIndex;
                 }
             }
@@ -261,6 +264,35 @@ public class DilemmaBehavior : MonoBehaviour
         if(parts.Length == 2 && int.TryParse(parts[1], out int index))
             return index;
         return -1; 
+    }
+
+    IEnumerator MutateGeneration(){
+        List<string> prunedAgentIDs = new List<string>();
+        foreach(var agent in agents){
+            var agentScript = agent.GetComponent<AgentScript>();
+            if(agentScript != null){
+                prunedAgentIDs.Add(agentScript.agentID);
+            }
+        }
+        string jsonData = JsonConvert.SerializeObject(prunedAgentIDs);
+        byte[] bodyRaw = System.Text.Encoding.UTF8.GetBytes(jsonData);
+
+        using (UnityWebRequest fetchMutation = new UnityWebRequest("http://localhost:8080/mutate_generation", "POST"))
+        {
+            fetchMutation.uploadHandler = new UploadHandlerRaw(bodyRaw);
+            fetchMutation.downloadHandler = new DownloadHandlerBuffer();
+            fetchMutation.SetRequestHeader("Content-Type", "application/json");
+
+            yield return fetchMutation.SendWebRequest();
+
+            if(fetchMutation.result != UnityWebRequest.Result.Success){
+                Debug.LogError($"Mutation failed: {fetchMutation.error}");
+            }
+            else{
+                Debug.Log("Mutation successful!");
+                Debug.Log($"Server returned: {fetchMutation.downloadHandler.text}");
+            }
+        }
     }
 }
 

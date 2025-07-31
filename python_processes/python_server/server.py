@@ -30,6 +30,11 @@ def calculate_score_matrix(action_i, action_j):
         return 5, 0
     elif action_i == 1 and action_j == 1: # Steal/Steal
         return 1, 1
+    
+def mutate_weights(weights, mutation_strength=0.01):
+    # Weights will be a a torch.Tensor
+    noise = torch.randn_like(weights) * mutation_strength
+    return weights + noise
 
 @app.route('/models_init', methods=['POST'])
 def initialize_agents():
@@ -149,7 +154,41 @@ def play_generation_dilemma():
         'general_scores': agent_general_scores
     })
 
+@app.route('/mutate_generation', methods=['POST'])
+def mutate_pruned_generation(): # We expect a one-dimensional list of agent names here
+    pruned_agent_list = request.get_json()
+    if not pruned_agent_list or len(pruned_agent_list) < 4:
+        return jsonify({'error': 'Need at least 4 agents to mutate'}), 400
+    
+     # For our simulation, we'll have two offspring that are lightly mutated, and two that are heavily mutated for each agent of a previous generation. 
+     # Light mutation will have strength of 0.01 for model weights, and heavy mutation will have a strength of 0.1
+    new_models = {}
 
+    for idx, agent_name in enumerate(pruned_agent_list[:4]):
+        if agent_name not in agent_models:
+            return jsonify({'error': f'Agent {agent_name} not found'}), 400
+        original_model = agent_models[agent_name]
+        new_model = AgentModel().to(device)
+        new_model.load_state_dict(original_model.state_dict())  # copy weights
+        new_model.eval()
+
+        mutation_strength = 0.01 if idx < 2 else 0.1
+
+        # Mutate the model's weights
+        mutated_state_dict = {}
+        for key, param in new_model.state_dict().items():
+            mutated_param = mutate_weights(param, mutation_strength)
+            mutated_state_dict[key] = mutated_param
+
+        new_model.load_state_dict(mutated_state_dict)
+        new_models[agent_name] = new_model
+
+    # Replace original agent models with the newly mutated ones now
+    for agent_name, mutated_model in new_models.items():
+        agent_models[agent_name] = mutated_model # Save in our dictionary for seamless integration into play_dilemma (both reference same list)
+
+    return jsonify({'message': f'Mutated 4 agents: {pruned_agent_list[:4]}'}), 200
+    
 
 if __name__ == '__main__':
     app.run(debug=True, port=8080)
