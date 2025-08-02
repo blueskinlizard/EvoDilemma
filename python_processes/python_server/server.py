@@ -39,6 +39,14 @@ def mutate_weights(weights, mutation_strength=0.01):
 
 @app.route('/models_init', methods=['POST'])
 def initialize_agents():
+    global agent_models, agent_general_scores, agent_fitness_list, GENERATION_COUNT
+    GENERATION_COUNT = 0
+    # Now this is really, funny, so I actually FORGOT to put these clear methods for a decent chunk of the development time, which basically made it so that 
+    # Even when I restarted the Unity Sim, our server still acted as though nothing really changed, which kinda threw things off. 
+    agent_models.clear()
+    agent_general_scores.clear()
+    agent_fitness_list.clear()
+
     # Ok, the log checks here might be a little overkill from an outside view, but promise me, debugging django/unity communication errors is annoying
     data = request.get_json()
     if not data:
@@ -80,6 +88,7 @@ def forward_pass(): # Technically not really needed, but if you want to run indi
 
 @app.route('/play_dilemma', methods=['GET'])
 def play_generation_dilemma():
+    global agent_models, agent_general_scores, agent_fitness_list
     # Clear dicts/data per generation
     agent_general_scores = {}
     agent_fitness_list = {}
@@ -154,41 +163,63 @@ def play_generation_dilemma():
         'general_scores': agent_general_scores
     })
 
-@app.route('/mutate_generation', methods=['POST'])
-def mutate_pruned_generation(): # We expect a one-dimensional list of agent names here
+@app.route('/mutate_generation', methods=['POST'])  # We expect a one-dimensional list of agent names here
+def mutate_pruned_generation():
     pruned_agent_list = request.get_json()
-    if not pruned_agent_list or len(pruned_agent_list) < 4:
-        return jsonify({'error': 'Need at least 4 agents to mutate'}), 400
-    
-     # For our simulation, we'll have two offspring that are lightly mutated, and two that are heavily mutated for each agent of a previous generation. 
-     # Light mutation will have strength of 0.01 for model weights, and heavy mutation will have a strength of 0.1
-    new_models = {}
+    if not pruned_agent_list or len(pruned_agent_list) < 2:
+        return jsonify({'error': 'Need at least 2 agents to crossover'}), 400
 
-    for idx, agent_name in enumerate(pruned_agent_list[:4]):
-        if agent_name not in agent_models:
-            return jsonify({'error': f'Agent {agent_name} not found'}), 400
-        original_model = agent_models[agent_name]
-        new_model = AgentModel().to(device)
-        new_model.load_state_dict(original_model.state_dict())  # copy weights
-        new_model.eval()
+    global agent_models
+    new_agent_models = {}
 
-        mutation_strength = 0.01 if idx < 2 else 0.1
+    agent_id = 0
 
-        # Mutate the model's weights
-        mutated_state_dict = {}
-        for key, param in new_model.state_dict().items():
-            mutated_param = mutate_weights(param, mutation_strength)
-            mutated_state_dict[key] = mutated_param
+    np.random.shuffle(pruned_agent_list)
 
-        new_model.load_state_dict(mutated_state_dict)
-        new_models[agent_name] = new_model
+    for i in range(0, len(pruned_agent_list) - 1, 2):
+        parent_a_id = pruned_agent_list[i]
+        parent_b_id = pruned_agent_list[i + 1]
 
-    # Replace original agent models with the newly mutated ones now
-    for agent_name, mutated_model in new_models.items():
-        agent_models[agent_name] = mutated_model # Save in our dictionary for seamless integration into play_dilemma (both reference same list)
+        if parent_a_id not in agent_models or parent_b_id not in agent_models:
+            continue  # Skip invalid parents
 
-    return jsonify({'message': f'Mutated 4 agents: {pruned_agent_list[:4]}'}), 200
-    
+        parent_a = agent_models[parent_a_id]
+        parent_b = agent_models[parent_b_id]
+
+        # For our simulation, we'll have four offspring per couple, where there are two that are lightly mutated, and two that are heavily mutated for each couple of a previous generation. 
+        # Light mutation will have strength of 0.01 for model weights, and heavy mutation will have a strength of 0.1
+        for k in range(8):
+            mutation_strength = 0.01 if k < 4 else 0.1
+
+            child_model = AgentModel().to(device)
+            state_dict = {}
+
+            for key in parent_a.state_dict().keys():
+                weight_a = parent_a.state_dict()[key]
+                weight_b = parent_b.state_dict()[key]
+
+                # Here we perform crossover by alternating weights to insert into our offspring from the parents. 
+                if weight_a.ndim == 0:
+                    crossover = weight_a if (k % 2 == 0) else weight_b
+                else:
+                    crossover = weight_a.clone()
+                    mask = torch.rand_like(crossover) > 0.5
+                    crossover[mask] = weight_b[mask]
+
+                # Mutate after our crossover is finished
+                crossover = mutate_weights(crossover, mutation_strength)
+                state_dict[key] = crossover
+
+            child_model.load_state_dict(state_dict)
+            child_model.eval()
+
+            new_name = f"agent_{agent_id}"
+            new_agent_models[new_name] = child_model
+            agent_id += 1
+
+    agent_models = new_agent_models
+    return jsonify({'message': f'Successfully generated offspring from {len(pruned_agent_list)} parents'}), 200
+
 @app.route('/regenerate_network', methods=['GET'])
 def regenerate_agent_network():
     network_subprocess = subprocess.run(['python', '../misc_processes/generate_agent_graph.py'], capture_output=True, text=True)
