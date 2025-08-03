@@ -5,6 +5,7 @@ using Newtonsoft.Json;
 using UnityEngine.Networking;
 using UnityEngine.UI;
 using System.Linq;
+using TMPro;
 
 public class DilemmaBehavior : MonoBehaviour
 {
@@ -13,6 +14,13 @@ public class DilemmaBehavior : MonoBehaviour
     [SerializeField] private GameObject backgroundObject;
     [SerializeField] private Button generationButton;
     [SerializeField] private Button pruneButton;
+    [SerializeField] public VerticalLayoutGroup AgentInfoPanel;
+
+    private static Dictionary<string, List<string>> completeMatchHistory = new Dictionary<string, List<string>>();
+
+    public static DilemmaBehavior Instance;
+
+    public GenerationResponse generationData;
 
     public static int CurrentGeneration = 0;
 
@@ -26,6 +34,11 @@ public class DilemmaBehavior : MonoBehaviour
 
     [SerializeField] private float jitterStrength = 22f; // Variable that scatters our agents (without this, they'll arrange themselves into a perfect circle)
 
+    private void Awake()
+    {
+        ConfigureVerticalLayoutGroup();
+        Instance = this;
+    }
     private void Start()
     {
         LoadGraph();
@@ -61,7 +74,7 @@ public class DilemmaBehavior : MonoBehaviour
         }
         AgentScript.allAgents = FindObjectsOfType<AgentScript>();
     }
-    // I know my naming isn't the best, but the difference between SpawnModels and SpawnAgents is that this simply initializes the random pytorch models on our django server
+    // I know my naming isn't the best, but the difference between SpawnModels and SpawnAgents is that this simply initializes the random pytorch models on our flask server
     IEnumerator SpawnModels()
     {
         string jsonRequest = $"{{\"num_agents\": {agents.Count}}}";
@@ -180,7 +193,7 @@ public class DilemmaBehavior : MonoBehaviour
 
             yield return new WaitForEndOfFrame(); // Wait for all agents & edges to be created
             
-            // Ensure the static references are properly set after recreation
+            // Ensure our static references are properly set after recreation (so pruned agents don't ONLY show match history against other pruned agents)
             AgentScript.allAgents = FindObjectsOfType<AgentScript>();
             AgentScript.allEdges = FindObjectsOfType<LineRenderer>();
         }
@@ -196,7 +209,10 @@ public class DilemmaBehavior : MonoBehaviour
                 string responseText = fetchGeneration.downloadHandler.text;
                 Debug.Log("Generation progression successful!");
                 Debug.Log($"Server returned: {responseText}");
-                var generationData = JsonConvert.DeserializeObject<GenerationResponse>(responseText);
+                generationData = JsonConvert.DeserializeObject<GenerationResponse>(responseText);
+
+                // Store complete match history before any pruning happens
+                StoreCompleteMatchHistory();
 
                 // GenerationData includes the following: 
                 // generationData.actions
@@ -209,7 +225,7 @@ public class DilemmaBehavior : MonoBehaviour
                 sortedTopFitness = generationData.fitness_scores.OrderByDescending(pair => pair.Value).Take((int)(generationData.fitness_scores.Count * 0.25)).ToDictionary(pair => pair.Key, pair => pair.Value);
                 
                 // For visualization, we'll save if certain agents lean more towards being stealers/splitters. 
-                agentBehaviorList.Clear(); // Clear the list before repopulating
+                agentBehaviorList.Clear();
                 foreach(var agentActions in generationData.actions){
                     int zeros = agentActions.Value.Count(actions => actions == 0);
                     int ones = agentActions.Value.Count(actions => actions == 1);
@@ -233,6 +249,53 @@ public class DilemmaBehavior : MonoBehaviour
                 }
                 CurrentGeneration++;
             }
+        }
+    }
+    void StoreCompleteMatchHistory() // Method to avoid pruning agents match history pitfall
+    {
+        if(generationData == null || generationData.actions == null)
+            return;
+
+        foreach(var agent in agents){
+            var agentScript = agent.GetComponent<AgentScript>();
+            if(agentScript == null) continue;
+
+            string agentKey = agentScript.agentID;
+            
+            if(!generationData.actions.ContainsKey(agentKey))
+                continue;
+
+            List<int> actions = generationData.actions[agentKey];
+            var connectedAgents = agentScript.connectedAgents;
+            
+            if(connectedAgents == null || connectedAgents.Count == 0)
+                continue;
+
+            List<string> matchHistory = new List<string>();
+            int roundsPerOpponent = 4;
+            
+            for(int i = 0; i < connectedAgents.Count; i++){
+                var opponentScript = connectedAgents[i].GetComponent<AgentScript>();
+                if(opponentScript == null) continue;
+
+                string opponentID = opponentScript.agentID;
+                int opponentIndex = ExtractIndexFromAgentID(opponentID);
+                
+                List<string> roundActions = new List<string>();
+                for(int r = 0; r < roundsPerOpponent; r++) 
+                {
+                    int actionIndex = i * roundsPerOpponent + r;
+                    if(actionIndex >= actions.Count) break;
+
+                    int action = actions[actionIndex];
+                    roundActions.Add(action == 0 ? "Split" : "Steal");
+                }
+                
+                // Store opponent info and their actions
+                matchHistory.Add($"vs Agent {opponentIndex}:{string.Join(",", roundActions)}");
+            }
+            
+            completeMatchHistory[agentKey] = matchHistory;
         }
     }
     void PruneGeneration()
@@ -284,7 +347,7 @@ public class DilemmaBehavior : MonoBehaviour
             DrawPrunedEdges();
         }
     }
-    private int ExtractIndexFromAgentID(string agentID)
+    private static int ExtractIndexFromAgentID(string agentID)
     {
         var parts = agentID.Split('_');
         if(parts.Length == 2 && int.TryParse(parts[1], out int index))
@@ -323,7 +386,7 @@ public class DilemmaBehavior : MonoBehaviour
     void ClearSim()
     {
         foreach(var edge in activeEdges){
-            if (edge != null)
+            if(edge != null)
                 Destroy(edge);
         }
         activeEdges.Clear();
@@ -341,7 +404,123 @@ public class DilemmaBehavior : MonoBehaviour
         AgentScript.allAgents = null; 
         AgentScript.allEdges = null; 
     }
+    public static void CreateDescription(int agentID)
+    {
+        string agentKey = $"agent_{agentID}";
+
+        List<Transform> childrenToDestroy = new List<Transform>();
+        foreach(Transform child in Instance.AgentInfoPanel.transform){
+            childrenToDestroy.Add(child);
+        }
+        
+        foreach(Transform child in childrenToDestroy){
+            GameObject.DestroyImmediate(child.gameObject);
+        }
+
+        // Force our layout to rebuild and wait a frame (before this our text would stack weirdly and not clear itself between agent clicks)
+        Canvas.ForceUpdateCanvases();
+        LayoutRebuilder.ForceRebuildLayoutImmediate(Instance.AgentInfoPanel.GetComponent<RectTransform>());
+
+        Instance.AddAgentTitle($"Agent {agentID}");
+        
+        // Use stored complete match history instead of current connections (pruned agent match history pitfall)
+        if(!completeMatchHistory.ContainsKey(agentKey) || completeMatchHistory[agentKey].Count == 0){
+            Debug.LogWarning($"No complete match history found for {agentKey}");
+            Instance.AddAgentSubheader("No match history available for this agent yet.");
+            return;
+        }
+        
+        List<string> matchHistory = completeMatchHistory[agentKey];
+        
+        foreach(string matchInfo in matchHistory){
+            // Parse our stored match info: "vs Agent X:Split,Steal,Split,Steal"
+            string[] parts = matchInfo.Split(':');
+            if(parts.Length == 2){
+                string opponentInfo = parts[0]; // "vs Agent X"
+                string[] actions = parts[1].Split(','); // ["Split", "Steal", "Split", "Steal"]
+                
+                Instance.AddAgentSubheader(opponentInfo);
+                Instance.AddAgentActions(actions.ToList());
+            }
+        }
+        
+        // Force another layout rebuild after adding all content just to make sure yk
+        Canvas.ForceUpdateCanvases();
+        LayoutRebuilder.ForceRebuildLayoutImmediate(Instance.AgentInfoPanel.GetComponent<RectTransform>());
+    }
+    public void AddAgentTitle(string title)
+    {
+        TMP_Text textObj = CreateTMPText();
+        textObj.text = title;
+        textObj.fontSize = 12;
+        textObj.fontStyle = FontStyles.Bold;
+        textObj.color = Color.white;
+    }
+
+    public void AddAgentSubheader(string subheader)
+    {
+        TMP_Text textObj = CreateTMPText();
+        textObj.text = subheader;
+        textObj.fontSize = 8;
+        textObj.fontStyle = FontStyles.Italic;
+        textObj.color = new Color(0.85f, 0.85f, 0.85f); 
+    }
+
+    public void AddAgentActions(List<string> actions)
+    {
+        TMP_Text textObj = CreateTMPText();
+        textObj.text = string.Join(", ", actions);
+        textObj.fontSize = 4;
+        textObj.color = Color.white;
+    }
+    
+    private TMP_Text CreateTMPText()
+    {
+        GameObject textGO = new GameObject("DynamicTMPText");
+        textGO.transform.SetParent(AgentInfoPanel.transform, false);
+
+        TMP_Text tmpText = textGO.AddComponent<TextMeshProUGUI>();
+        
+        tmpText.enableAutoSizing = false;
+        tmpText.fontSize = 20;
+        tmpText.alignment = TextAlignmentOptions.TopLeft;
+        
+        tmpText.margin = Vector4.zero;
+        tmpText.lineSpacing = 0f;
+        tmpText.paragraphSpacing = 0f;
+        tmpText.enableWordWrapping = false;
+        
+        RectTransform rectTransform = textGO.GetComponent<RectTransform>();
+        rectTransform.anchorMin = new Vector2(0, 1);
+        rectTransform.anchorMax = new Vector2(1, 1);
+        rectTransform.pivot = new Vector2(0, 1);
+        
+        tmpText.overflowMode = TextOverflowModes.Overflow;
+        tmpText.verticalAlignment = VerticalAlignmentOptions.Top;
+        
+        LayoutElement layoutElement = textGO.AddComponent<LayoutElement>();
+        layoutElement.preferredHeight = -1; 
+        layoutElement.flexibleHeight = 0;  
+        
+        LayoutRebuilder.ForceRebuildLayoutImmediate(rectTransform);
+        
+        return tmpText;
+    }
+    void ConfigureVerticalLayoutGroup()
+    {
+        VerticalLayoutGroup vlg = AgentInfoPanel;
+        vlg.spacing = 1.5f;
+        vlg.padding = new RectOffset(0, 0, 0, 0);
+        vlg.childControlHeight = true;
+        vlg.childControlWidth = true;
+        vlg.childForceExpandHeight = false;
+        vlg.childForceExpandWidth = false;
+        vlg.childScaleHeight = false;
+        vlg.childScaleWidth = false;
+    }
+
 }
+
 
 public class GenerationResponse{ // Just a little custom type for QOL ig
     public string message;

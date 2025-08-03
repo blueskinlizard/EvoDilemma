@@ -47,7 +47,7 @@ def initialize_agents():
     agent_general_scores.clear()
     agent_fitness_list.clear()
 
-    # Ok, the log checks here might be a little overkill from an outside view, but promise me, debugging django/unity communication errors is annoying
+    # Ok, the log checks here might be a little overkill from an outside view, but promise me, debugging flask/unity communication errors is annoying
     data = request.get_json()
     if not data:
         return jsonify({'error': 'No JSON data received'}), 400
