@@ -39,6 +39,7 @@
         private Coroutine autoProgressCoroutine;
 
         [SerializeField] private float jitterStrength = 22f; // Variable that scatters our agents (without this, they'll arrange themselves into a perfect circle)
+        private bool progressGenerationCanStop;
 
         private void Awake()
         {
@@ -583,8 +584,10 @@
             {
                 yield return StartCoroutine(ProgressGeneration());
                 yield return new WaitForSeconds(0.5f);
+                PruneGeneration();
+                yield return new WaitForSeconds(0.5f);
             }
-        }
+        }   
 
     }
 
