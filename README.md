@@ -63,7 +63,7 @@ Fitness calculations exclude initial rounds to allow for **neural memory bootstr
 
 ## 📸 Screenshots
 <img width="1900" height="858" alt="Agents being labeled as splitters(blue) or stealers(red)" src="https://github.com/user-attachments/assets/47750873-5dcc-4e9a-bb2f-9e2ebf9f157e" />
-How our agent network looks after a generation progression. 
+How our agent network looks after a generation progression (Blue nodes are agents that have a tendency to split more often, with red agents being more likely to steal). 
 <img width="1890" height="861" alt="Viewing agent connections & match history" src="https://github.com/user-attachments/assets/981659d6-76f5-4074-868c-9aab55bc9713" />
 How our agent network looks after an agent has been selected, showing agent match history against other connected agents. 
 <img width="1891" height="856" alt="How a generation of agents look after pruning(top 25% of agents with the highest fitness scores kept)" src="https://github.com/user-attachments/assets/de32f497-4556-4852-82c4-f20055ab717d" />
