@@ -23,7 +23,7 @@ Fitness calculations exclude initial rounds to allow for **neural memory bootstr
 ### ✅ Evolution Engine
 - Fitness-based selection and pruning
 - Memory-aware agent evaluation
-- Neuroevolution using PyTorch (no backpropagation)
+- Neuroevolution using PyTorch (no backpropagation, agents progressively get better through neurevolution, where agent fitness is calculated, and the top 25% get to further reproduce)
 
 ### 🔁 Strategy Simulation
 - Iterated Prisoner’s Dilemma tournaments
@@ -32,7 +32,7 @@ Fitness calculations exclude initial rounds to allow for **neural memory bootstr
 
 ### 🌐 Network Dynamics
 - Agents placed on Watts-Strogatz networks (rewiring prob configurable)
-- 2-neighbor tournaments per agent per generation
+- Multiple 2-neighbor games per agent per generation
 - Edge visualization reflects interaction dynamics
 
 ### 🎮 Real-Time Visualization (Unity)
@@ -54,10 +54,9 @@ Fitness calculations exclude initial rounds to allow for **neural memory bootstr
 |----------------|----------------------------------|
 | Simulation Core | Unity (C#), Coroutines, REST API |
 | Backend Logic   | Python, Flask, PyTorch           |
-| Data Handling   | JSON, Newtonsoft.Json            |
 | Architecture    | HTTP Client/Server, RESTful APIs |
 | AI Methods      | Genetic Algorithms, Neural Nets  |
-| Graph Theory    | Watts-Strogatz Model             |
+| Graph Theory    | Watts-Strogatz(Small World) Model |
 
 ---
 
