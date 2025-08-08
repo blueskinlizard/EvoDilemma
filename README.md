@@ -68,7 +68,31 @@ How our agent network looks after an agent has been selected, showing agent matc
 <img width="1891" height="856" alt="How a generation of agents look after pruning(top 25% of agents with the highest fitness scores kept)" src="https://github.com/user-attachments/assets/de32f497-4556-4852-82c4-f20055ab717d" />
 How a generation of agents look after pruning(top 25% of agents with the highest fitness scores kept)
 
-
-
 ---
+# Instructions for Running the Backend
 
+## Prerequisites
+
+- Python 3.10 or higher installed on your system  
+- `pip` package manager available  
+
+## Setup
+
+### Create and activate a virtual environment (recommended):
+If you don't already have an established venv that holds all of your dependencies, you can initialize a new one:
+
+```bash
+python3 -m venv venv
+source venv/bin/activate   # On Windows use: venv\Scripts\activate
+```
+## Install dependencies
+I WAS planning to dockerize this project, but for some reason, dockerization here was a pain, so you (the dear reader), will have to make do with installing the dependencies yourself. 
+```bash
+pip install --upgrade pip
+pip install -r python_processes/requirements.txt
+```
+## Run the backend server:
+```bash
+python python_processes/python_server/server.py
+```
+After this is done(the port should be 8080), when the Unity simulation is ran, will automatically communicate with the server when needed (as it's set to communicate with 8080), no further setup required!
