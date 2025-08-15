@@ -1,16 +1,16 @@
-# EvoDilemma 🎭🧠  
+# EvoDilemma 🎭
 **An Evolutionary AI Simulation of the Iterated Prisoner’s Dilemma Across Complex Networks**
 
 EvoDilemma simulates how artificial agents evolve strategic behavior over generations in the classic Iterated Prisoner’s Dilemma (IPD). Using neuroevolution and small-world network topologies, this project explores the emergence of cooperation, deception, and memory-based adaptation in agent populations.
 
 
-## 🧠 Overview
+## Overview
 
 EvoDilemma models **600+ neural network agents** playing iterative IPD matches across dynamically generated **Watts-Strogatz small-world networks**. Each agent has a simple feedforward network that maps memory (of its last three moves and its opponent’s) to future actions.
 
 After each generation, agents evolve using a **custom-built genetic algorithm** featuring:
 - **Top-25% fitness-based selection**
-- **4:1 offspring generation ratio**
+- **4:1 offspring generation ratio (to maintain a consistent agent count in each generation)**
 - **Crossover breeding** via random weight masking
 - **Stratified mutation rates** (0.01 / 0.1 strength variants)
 
@@ -20,43 +20,40 @@ Fitness calculations exclude initial rounds to allow for **neural memory bootstr
 
 ## 🔧 Key Features
 
-### ✅ Evolution Engine
+### Evolution!
 - Fitness-based selection and pruning
-- Memory-aware agent evaluation
 - Neuroevolution using PyTorch (no backpropagation, agents progressively get better through neurevolution, where agent fitness is calculated, and the top 25% get to further reproduce)
 
-### 🔁 Strategy Simulation
+### Strategy Simulation
 - Iterated Prisoner’s Dilemma tournaments
 - Custom input encoding of 6 memory slots (3 agent, 3 opponent)
 - Behavioral phenotyping (Cooperator / Defector tendencies)
 
-### 🌐 Network Dynamics
+### Network Dynamics
 - Agents placed on Watts-Strogatz networks (rewiring prob configurable)
-- Multiple 2-neighbor games per agent per generation
+- Multiple neighbor games per agent per generation
 - Edge visualization reflects interaction dynamics
 
-### 🎮 Real-Time Visualization (Unity)
+### Real-Time Visualization (Unity)
 - Interactive genealogy tracking for each agent
 - Dynamic network graph with edge highlighting
 - Generation progression control with coroutine-based automation
 - Phenotype overlays and selection detail popups
 
-### 🔌 Distributed System Architecture
+### Distributed System Architecture
 - **Unity frontend** (C#) communicates with **Flask backend** (Python)
-- RESTful API endpoints for match simulation, mutation, generation progression
-- Persistent agent history synced across client/server
+- API endpoints for match simulation, mutation, generation progression
+- Agent history synced across client/server
 
 ---
 
-## 🧪 Tech Stack
+## Tech Stack
 
 | Component       | Tech                            |
 |----------------|----------------------------------|
-| Simulation Core | Unity (C#), Coroutines, REST API |
+| Simulation     | Unity (C#), REST API             |
 | Backend Logic   | Python, Flask, PyTorch           |
-| Architecture    | HTTP Client/Server, RESTful APIs |
-| AI Methods      | Genetic Algorithms, Neural Nets  |
-| Graph Theory    | Watts-Strogatz(Small World) Model |
+| AI Methods      | Mutation Algorithms, 6-Input neural net |
 
 ---
 
