@@ -35,10 +35,10 @@ Fitness calculations exclude initial rounds to allow for **neural memory bootstr
 - Edge visualization reflects interaction dynamics
 
 ### Real-Time Visualization (Unity)
-- Interactive genealogy tracking for each agent
+- Interactive match history tracking for each agent
 - Dynamic network graph with edge highlighting
 - Generation progression control with coroutine-based automation
-- Phenotype overlays and selection detail popups
+- Phenotype overlays 
 
 ### Distributed System Architecture
 - **Unity frontend** (C#) communicates with **Flask backend** (Python)
