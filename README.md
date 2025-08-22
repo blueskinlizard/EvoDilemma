@@ -67,8 +67,9 @@ How our agent network looks after an agent has been selected, showing agent matc
 <img width="1891" height="856" alt="How a generation of agents look after pruning(top 25% of agents with the highest fitness scores kept)" src="https://github.com/user-attachments/assets/de32f497-4556-4852-82c4-f20055ab717d" />
 How a generation of agents look after pruning(top 25% of agents with the highest fitness scores kept). These are the top ranked agents of generation 1.
 <img width="1675" height="858" alt="image" src="https://github.com/user-attachments/assets/af268dd7-4e0f-46eb-8341-4e49ce7216da" />
-
 How a generation of agents look after pruning(top 25% of agents with the highest fitness scores kept). These are the top ranked agents of generation 439.
+
+
 ---
 # Instructions for Running the Backend
 
